@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"url-shortner/config"
 	"url-shortner/handlers"
 	middleware "url-shortner/middlware"
@@ -18,8 +19,12 @@ func main() {
 	mux.HandleFunc("POST /shorten", handlers.ShortenHandler)
 	mux.HandleFunc("/",handlers.RedirectHandler)
 	logger := middleware.Logger(mux)
-	fmt.Println("Server started on :8080")
-	err:= http.ListenAndServe(":8080", logger)
+	port := os.Getenv("PORT")
+    if port == "" {
+        port = "3000" // fallback for local dev only
+    }
+	fmt.Println("Server started on :" + port)
+	err:= http.ListenAndServe(":" + port, logger)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}
