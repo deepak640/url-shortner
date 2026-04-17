@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -15,8 +16,13 @@ var DB *mongo.Client
 
 func Connect() {
 	// 1. Configure options with our connection string.
-	opts := options.Client().ApplyURI("mongodb://localhost:27017")
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017" // Default value
+	}
 
+	opts := options.Client().ApplyURI(mongoURI)
+	fmt.Println(mongoURI)
 	// 2. Connect to the database.
 	// In v2, Connect does not require a context directly.
 	client, err := mongo.Connect(opts)

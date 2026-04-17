@@ -3,7 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	
+	"os"
+
 	"log"
 	"strings"
 
@@ -52,10 +53,10 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Shortened %s to %s", body.URL, code)
-
+	Server := os.Getenv("SERVER")
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]string{
-		"short_url": "http://localhost:8080/" + code,
+		"short_url": Server + code,
 	}
 
 	json.NewEncoder(w).Encode(response)
