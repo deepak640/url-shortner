@@ -6,7 +6,6 @@ import (
 	"url-shortner/config"
 	"url-shortner/handlers"
 	middleware "url-shortner/middlware"
-	// middleware "url-shortner/middlware"
 )
 
 
@@ -25,4 +24,3 @@ func main() {
 		fmt.Println("Error starting server:", err)
 	}
 }
-
