@@ -3,27 +3,26 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"os"
-
 	"log"
-	"strings"
-
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 	"url-shortner/config"
 	"url-shortner/models"
-
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
+	"github.com/joho/godotenv"
 )
 
-
-
 func ShortenHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
+	Server := os.Getenv("SERVER")
 	collection := config.DB.Database("urlshortener").Collection("urls")
 	var body struct {
-		URL string `json:"url"`
+		URL    string `json:"url"`
+		UserID string `json:"userid"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -40,6 +39,7 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	doc := models.URL{
 		ShortCode: code,
+		UserID:    body.UserID,
 		LongURL:   body.URL,
 		CreatedAt: time.Now(),
 	}
@@ -53,8 +53,8 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Shortened %s to %s", body.URL, code)
-	Server := os.Getenv("SERVER")
-	w.Header().Set("Content-Type", "application/json")
+
+
 	response := map[string]string{
 		"short_url": Server + code,
 	}
@@ -62,49 +62,8 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func RedirectHandler(w http.ResponseWriter, r *http.Request) {
-	code := strings.Trim(r.URL.Path, "/")
-
-	// ✅ Avoid empty or reserved paths
-	if code == "" || code == "shorten" {
-		http.Error(w, "Invalid short URL", http.StatusBadRequest)
-		return
-	}
-
-	collection := config.DB.Database("urlshortener").Collection("urls")
-
-	var result models.URL
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := collection.FindOne(ctx, bson.M{"short_code": code}).Decode(&result)
-
-	// ✅ Proper error handling
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			log.Printf("Short code not found: %s", code)
-			http.NotFound(w, r)
-			return
-		}
-
-		log.Printf("DB error for code %s: %v", code, err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-
-	// ✅ Ensure URL has scheme
-	if !strings.HasPrefix(result.LongURL, "http") {
-		result.LongURL = "http://" + result.LongURL
-	}
-
-	http.Redirect(w, r, result.LongURL, http.StatusFound)
-}
 
 // functions
-
-
 func generateCode() string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, 6)
