@@ -15,6 +15,7 @@ import (
 	"url-shortner/models"
 
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func ShortenHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +29,7 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 		URL       string `json:"URL"`
 		UserID    string `json:"userid"`
 		ExpiresIn string `json:"ExpiresIn"`
+		CustomCode string `json:"CustomCode"`
 		MaxClicks string `json:"MaxClicks"`
 	}
 
@@ -53,8 +55,15 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse MaxClicks
 	maxClicks, _ := strconv.Atoi(body.MaxClicks)
-
-	code := generateCode()
+	response := collection.FindOne(context.TODO(), bson.M{"short_code": body.CustomCode})
+	if response.Err() == nil {
+		http.Error(w, "Custom code already exists", http.StatusBadRequest)
+		return
+	}
+	code := body.CustomCode
+	if code == "" {
+		code = generateCode()
+	}
 
 	doc := models.URL{
 		ShortCode:     code,
@@ -78,11 +87,11 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Shortened %s to %s", body.URL, code)
 
 
-	response := map[string]string{
+	response1 := map[string]string{
 		"short_url": Server + code,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response1)
 }
 
 // functions
