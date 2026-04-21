@@ -19,6 +19,7 @@ func main() {
 	mux.HandleFunc("POST /shorten", handlers.ShortenHandler)
 	mux.HandleFunc("/",handlers.RedirectHandler)
 	mux.HandleFunc("POST /list",handlers.ListHandler)
+	mux.HandleFunc("POST /stats",handlers.StatsHandler)
 	mux.HandleFunc("POST /remove",handlers.RemoveHandler)
 	logger := middleware.Logger(mux)
 	port := os.Getenv("PORT")

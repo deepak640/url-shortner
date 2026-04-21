@@ -7,9 +7,13 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 	"url-shortner/config"
 	"url-shortner/models"
+
 	"github.com/joho/godotenv"
 )
 
@@ -21,8 +25,10 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	Server := os.Getenv("SERVER")
 	collection := config.DB.Database("urlshortener").Collection("urls")
 	var body struct {
-		URL    string `json:"url"`
-		UserID string `json:"userid"`
+		URL       string `json:"URL"`
+		UserID    string `json:"userid"`
+		ExpiresIn string `json:"ExpiresIn"`
+		MaxClicks string `json:"MaxClicks"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -35,13 +41,30 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if(body.ExpiresIn == ""){
+		body.ExpiresIn = "24h"
+	}
+
+	if(body.MaxClicks == ""){
+		body.MaxClicks = "100"
+	}
+	// Parse Expiry
+	expiryDate := parseExpiryDuration(body.ExpiresIn)
+
+	// Parse MaxClicks
+	maxClicks, _ := strconv.Atoi(body.MaxClicks)
+
 	code := generateCode()
 
 	doc := models.URL{
-		ShortCode: code,
-		UserID:    body.UserID,
-		LongURL:   body.URL,
-		CreatedAt: time.Now(),
+		ShortCode:     code,
+		UserID:        body.UserID,
+		LongURL:       body.URL,
+		CreatedAt:     time.Now(),
+		ExpiresAt:     expiryDate,
+		MaxClicks:     maxClicks,
+		CurrentClicks: 0,
+		IsActive:      true,
 	}
 
 	_, err := collection.InsertOne(context.TODO(), doc)
@@ -62,7 +85,6 @@ func ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-
 // functions
 func generateCode() string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -71,4 +93,45 @@ func generateCode() string {
 		code[i] = charset[rand.Intn(len(charset))]
 	}
 	return string(code)
+}
+
+// Parse duration strings like "24h", "7d", "30m"
+func parseExpiryDuration(expiresIn string) *time.Time {
+	if expiresIn == "" {
+		return nil
+	}
+
+	// Regular expression to match number + unit
+	re := regexp.MustCompile(`^(\d+)([hHdDmM])?$`)
+	matches := re.FindStringSubmatch(expiresIn)
+
+	if len(matches) < 2 {
+		return nil
+	}
+
+	value, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return nil
+	}
+
+	unit := "h" // default to hours
+	if len(matches) == 3 && matches[2] != "" {
+		unit = strings.ToLower(matches[2])
+	}
+
+	var duration time.Duration
+
+	switch unit {
+	case "h":
+		duration = time.Duration(value) * time.Hour
+	case "d":
+		duration = time.Duration(value) * 24 * time.Hour
+	case "m":
+		duration = time.Duration(value) * 30 * 24 * time.Hour // months
+	default:
+		return nil
+	}
+
+	expiryTime := time.Now().Add(duration)
+	return &expiryTime
 }

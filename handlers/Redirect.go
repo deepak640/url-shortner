@@ -44,6 +44,34 @@ func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ✅ Check if link is active
+	if !result.IsActive {
+		http.Error(w, "Link is no longer active", http.StatusGone)
+		return
+	}
+
+	// ✅ Check if link is expired
+	if result.ExpiresAt != nil && result.ExpiresAt.Before(time.Now().UTC()) {
+		collection.UpdateOne(ctx, bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"is_active": false}})
+		log.Printf("Short code expired: %s", code)
+		http.Error(w, "Link has expired", http.StatusGone)
+		return
+	}
+
+	// ✅ Check if max clicks reached
+	if result.MaxClicks > 0 && result.CurrentClicks >= result.MaxClicks {
+		collection.UpdateOne(ctx, bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"is_active": false}})
+		log.Printf("Max clicks reached for code %s", code)
+		http.Error(w, "Link has reached maximum usage", http.StatusGone)
+		return
+	}
+
+	// ✅ Increment click count
+	_, err = collection.UpdateOne(ctx, bson.M{"_id": result.ID}, bson.M{"$inc": bson.M{"current_clicks": 1}})
+	if err != nil {
+		log.Printf("Error updating click count for %s: %v", code, err)
+	}
+
 	// ✅ Ensure URL has scheme
 	if !strings.HasPrefix(result.LongURL, "http") {
 		result.LongURL = "http://" + result.LongURL
